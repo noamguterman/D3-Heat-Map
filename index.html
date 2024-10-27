@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="stylesheet" href="./styles.css" />
+    <title>Heat Map</title>
+    <script src="https://d3js.org/d3.v6.min.js"></script>
+  </head>
+
+  <body>
+    <h1 id="title">Monthly Global Land-Surface Temperature</h1>
+    <h2 id="description">1753 - 2015: base temperature 8.66℃</h2>
+    <div id="tooltip"></div>
+    <script>
+      const width = 1000;
+      const height = 500;
+
+      // Responsive scaling based on viewport
+      const responsiveWidth = window.innerWidth * 0.9;
+      const responsiveHeight = window.innerHeight * 0.7;
+      const responsivePaddingLeft = responsiveWidth * 0.12; // Increased left padding further
+      const responsivePaddingBottom = responsiveHeight * 0.2; // Increased bottom padding for years
+      const responsivePadding = responsiveWidth * 0.05;
+
+      // Fetch the data
+      fetch(
+        "https://raw.githubusercontent.com/freeCodeCamp/ProjectReferenceData/master/global-temperature.json"
+      )
+        .then((response) => response.json())
+        .then((data) => {
+          const baseTemperature = data.baseTemperature;
+          const monthlyVariance = data.monthlyVariance;
+
+          // Set scales
+          const xScale = d3
+            .scaleTime()
+            .domain([
+              new Date(
+                d3.min(monthlyVariance, (d) => d.year),
+                0
+              ),
+              new Date(
+                d3.max(monthlyVariance, (d) => d.year),
+                0
+              ),
+            ])
+            .range([
+              responsivePaddingLeft,
+              responsiveWidth - responsivePadding,
+            ]);
+
+          const yScale = d3
+            .scaleBand()
+            .domain([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11])
+            .range([
+              responsivePadding,
+              responsiveHeight - responsivePaddingBottom,
+            ]);
+
+          // Keep original color scale for graph (hot to cold)
+          const colorScale = d3
+            .scaleSequential(d3.interpolateRdYlBu)
+            .domain([
+              d3.max(monthlyVariance, (d) => d.variance + baseTemperature),
+              d3.min(monthlyVariance, (d) => d.variance + baseTemperature),
+            ]);
+
+          // Create the SVG with responsive viewBox
+          const svg = d3
+            .select("body")
+            .append("svg")
+            .attr("width", "100%")
+            .attr("height", "100%")
+            .attr("viewBox", `0 0 ${responsiveWidth} ${responsiveHeight + 100}`) // Adding 100 to make space for the legend
+            .attr("preserveAspectRatio", "xMinYMin meet");
+
+          // Add X-axis
+          const xAxis = d3.axisBottom(xScale).ticks(d3.timeYear.every(10));
+
+          svg
+            .append("g")
+            .attr("id", "x-axis")
+            .attr(
+              "transform",
+              `translate(0, ${responsiveHeight - responsivePaddingBottom})`
+            )
+            .call(xAxis)
+            .selectAll("text") // Rotate the X-axis text
+            .attr("transform", "rotate(-45)") // Rotate the text by -45 degrees
+            .style("text-anchor", "end"); // Align the text correctly after rotation
+
+          // Add Y-axis
+          const yAxis = d3.axisLeft(yScale).tickFormat((month) => {
+            const date = new Date(0);
+            date.setUTCMonth(month);
+            return d3.timeFormat("%B")(date);
+          });
+
+          svg
+            .append("g")
+            .attr("id", "y-axis")
+            .attr("transform", `translate(${responsivePaddingLeft}, 0)`) // Shifted to use new left padding
+            .call(yAxis);
+
+          // Add cells
+          svg
+            .selectAll(".cell")
+            .data(monthlyVariance)
+            .enter()
+            .append("rect")
+            .attr("class", "cell")
+            .attr("data-month", (d) => d.month - 1)
+            .attr("data-year", (d) => d.year)
+            .attr("data-temp", (d) => d.variance + baseTemperature)
+            .attr("x", (d) => xScale(new Date(d.year, 0)))
+            .attr("y", (d) => yScale(d.month - 1))
+            .attr(
+              "width",
+              (responsiveWidth - 2 * responsivePadding) /
+                (d3.max(monthlyVariance, (d) => d.year) -
+                  d3.min(monthlyVariance, (d) => d.year))
+            )
+            .attr("height", yScale.bandwidth())
+            .attr("fill", (d) => colorScale(d.variance + baseTemperature))
+            .on("mouseover", function (event, d) {
+              const monthNames = [
+                "January",
+                "February",
+                "March",
+                "April",
+                "May",
+                "June",
+                "July",
+                "August",
+                "September",
+                "October",
+                "November",
+                "December",
+              ];
+              d3.select("#tooltip")
+                .style("opacity", 0.9)
+                .style("left", event.pageX + 10 + "px")
+                .style("top", event.pageY - 28 + "px")
+                .html(
+                  `Year: ${d.year}<br>Month: ${
+                    monthNames[d.month - 1]
+                  }<br>Temperature: ${(d.variance + baseTemperature).toFixed(
+                    2
+                  )}&#8451;<br>Variance: ${d.variance.toFixed(2)}&#8451;`
+                )
+                .attr("data-year", d.year);
+            })
+            .on("mouseout", function () {
+              d3.select("#tooltip")
+                .style("opacity", 0) // Hide tooltip
+                .style("left", "-9999px") // Move off-screen to hide it
+                .style("top", "-9999px"); // Move off-screen to hide it
+            });
+
+          // Add legend below the graph
+          const legendWidth = 300;
+          const legendHeight = 20;
+
+          const legendScale = d3
+            .scaleLinear()
+            .domain([2.8, 12.8]) // Set custom domain for tick values
+            .range([0, legendWidth]);
+
+          const legendAxis = d3
+            .axisBottom(legendScale)
+            .tickValues([2.8, 3.9, 5.0, 6.1, 7.2, 8.3, 9.5, 10.6, 11.7, 12.8]) // Custom ticks
+            .tickFormat(d3.format(".1f"));
+
+          const legend = svg
+            .append("g")
+            .attr("id", "legend")
+            .attr(
+              "transform",
+              `translate(${responsivePaddingLeft}, ${
+                responsiveHeight + responsivePadding / 2
+              })`
+            ); // Reduced gap by using half of responsivePadding
+
+          const legendColors = colorScale
+            .ticks(10)
+            .reverse()
+            .map((d) => colorScale(d)); // Reverse colors only for the legend
+
+          legend
+            .selectAll("rect")
+            .data(legendColors)
+            .enter()
+            .append("rect")
+            .attr("x", (d, i) => i * (legendWidth / legendColors.length))
+            .attr("y", 0)
+            .attr("width", legendWidth / legendColors.length)
+            .attr("height", legendHeight)
+            .attr("fill", (d) => d);
+
+          legend
+            .append("g")
+            .attr("transform", `translate(0, ${legendHeight})`)
+            .call(legendAxis);
+        });
+    </script>
+  </body>
+</html>

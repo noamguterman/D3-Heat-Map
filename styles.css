@@ -1,0 +1,27 @@
+body {
+  font-family: Arial, sans-serif;
+  text-align: center; /* Center text globally */
+}
+#title {
+  margin: 20px 0;
+  font-size: 24px;
+}
+#description {
+  margin-bottom: 30px;
+  font-size: 18px;
+}
+.cell {
+  stroke: #ffffff;
+  stroke-width: 0.5;
+}
+#tooltip {
+  position: absolute;
+  background-color: rgba(0, 0, 0, 0.7);
+  color: #ffffff;
+  padding: 8px;
+  border-radius: 4px;
+  pointer-events: none;
+}
+#legend rect {
+  stroke: black;
+}
